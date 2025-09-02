@@ -1,46 +1,46 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 import mysql.connector
 
 app = FastAPI()
 
-# Function to connect to MySQL
-def get_db():
-    conn = mysql.connector.connect(
-        host="localhost",      # your DB host
-        user="root",           # your DB username
-        password="Pavi@713", # your DB password
-        database="healthbot"   # your DB name
+# Connect MySQL
+def get_db_connection():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",        # change this
+        password="password", # change this
+        database="chatbot_db"
     )
-    return conn
 
-# Home route
-@app.get("/")
-def home():
-    return {"message": "FastAPI + MySQL working!"}
+@app.post("/webhook")
+async def webhook(request: Request):
+    body = await request.json()
+    intent = body['queryResult']['intent']['displayName']
+    query_text = body['queryResult']['queryText'].lower()
 
-# Get all diseases
-@app.get("/diseases")
-def get_diseases():
-    conn = get_db()
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM diseases")
-    rows = cursor.fetchall()
+
+    # Get disease info
+    cursor.execute("SELECT * FROM diseases WHERE name=%s", (intent.lower(),))
+    result = cursor.fetchone()
+
+    reply = "Sorry, I don’t have information about that."
+
+    if result:
+        if "symptom" in query_text:
+            reply = result["symptoms"]
+        elif "prevent" in query_text:
+            reply = result["prevention"]
+        elif "vaccine" in query_text or "vaccination" in query_text:
+            reply = result["vaccination"]
+        else:
+            reply = f"Please ask about symptoms, prevention, or vaccination of {result['name'].title()}."
+
     cursor.close()
     conn.close()
-    return {"diseases": rows}
 
-# Get info about one disease
-@app.get("/disease/{name}")
-def get_disease(name: str):
-    conn = get_db()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM diseases WHERE name = %s", (name,))
-    row = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    return {
+        "fulfillmentText": reply
+    }
 
-    if row:
-        return {"disease": row}
-    else:
-
-        return {"message": f"No data found for {name}"}
