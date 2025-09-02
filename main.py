@@ -42,4 +42,5 @@ def get_disease(name: str):
     if row:
         return {"disease": row}
     else:
+
         return {"message": f"No data found for {name}"}
